@@ -6,7 +6,10 @@ const userSchema = new mongoose.Schema({
   passwordHash: { type: String, required: true, select: false },
   role: { type: String, enum: ["resident", "cook", "admin"], required: true, default: "resident" },
   residenceBlock: { type: String, trim: true, maxlength: 80, default: "" },
-  active: { type: Boolean, default: true }
+  active: { type: Boolean, default: true },
+  sessionVersion: { type: Number, default: 0 },
+  passwordResetTokenHash: { type: String, select: false },
+  passwordResetExpiresAt: { type: Date, select: false }
 }, { timestamps: true });
 
 userSchema.index({ role:  1, active: 1 });

@@ -6,12 +6,14 @@ Plate Count is a meal-planning and food-waste reduction app for hostels and camp
 
 - Resident signup and sign-in; accounts are assigned the resident role by the server.
 - Admin-managed accounts for residents, cooks and admins. Roles cannot be chosen during public signup.
-- Meal menus and cutoff times stored in MongoDB. The API rejects changes after the configured cutoff.
+- Meal menus and schedules stored in MongoDB. Admins can update them at any time; once a cutoff has passed, resident choices stay locked even if the schedule is later changed.
 - One response per resident and meal. Unanswered residents remain included in the kitchen headcount.
 - Cook/admin-only kitchen headcounts and QR scanner.
 - Short-lived, signed meal passes; check-in scans are accepted only during the serving window.
 - Resident meal history, admin attendance/no-show/waste reports, CSV export and waste logging.
 - HttpOnly, SameSite session cookies; password hashing; login rate limiting.
+- Time-limited, single-use password reset links delivered by SMTP email. Password changes invalidate existing sessions.
+- Admin account deletion removes the user's meal responses and check-in history. An admin cannot delete their own account.
 
 This is a single-origin app. Do not serve `index.html` directly from `file://`; use the Express server so the API and session cookie work.
 
@@ -37,7 +39,11 @@ Requirements: Node.js 20+ and a MongoDB instance (local MongoDB or MongoDB Atlas
 
    Remove the three `ADMIN_*` values when setup is complete. Sign in as that admin to create cook and other admin accounts.
 
-Default meal schedules use `APP_TIME_ZONE` (default `Asia/Kolkata`). Change it to an IANA time-zone name for the dining hall. A date-specific meal is created with the default menu the first time it is requested; admins can edit it before its cutoff.
+Default meal schedules use `APP_TIME_ZONE` (default `Asia/Kolkata`). Change it to an IANA time-zone name for the dining hall. A date-specific meal is created with the default menu the first time it is requested; admins can edit the menu and schedule at any time. Updating a schedule after its cutoff does not unlock resident choices.
+
+### Password recovery email
+
+Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, and `SMTP_FROM`. If the SMTP server requires authentication, also set `SMTP_USER` and `SMTP_PASS`. Set `APP_BASE_URL` to the public app origin when it cannot be detected automatically; Render uses its `RENDER_EXTERNAL_URL` by default. Keep SMTP credentials in private environment settings, never in source control. The password-reset link expires after one hour and can only be used once.
 
 ## Deploy to Render
 
@@ -45,7 +51,7 @@ The included `render.yaml` defines a Node web service and generates separate ses
 
 1. Create a MongoDB Atlas database and allow the deployed service to connect. Prefer a narrowly scoped database user; do not commit its URI.
 2. Push this folder to a Git repository and create a Render Blueprint from that repository.
-3. Enter `MONGODB_URI` when Render asks for the unsynced secret. Keep `APP_TIME_ZONE` set to the dining hall's IANA zone.
+3. Enter the MongoDB and SMTP settings when Render asks for unsynced values. Set `APP_BASE_URL` to the deployed HTTPS origin and keep `APP_TIME_ZONE` set to the dining hall's IANA zone. Password reset is unavailable until SMTP is configured.
 4. After the first deploy, create the initial admin using a trusted local environment with the production `MONGODB_URI` and temporary `ADMIN_*` variables, or create the first admin directly in the database with a securely generated bcrypt hash. Never add bootstrap credentials to source control or permanent service environment variables.
 5. Use the generated HTTPS URL. Camera QR scanning requires HTTPS; cook accounts can also paste a valid pass token if camera scanning is unavailable.
 

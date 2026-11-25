@@ -148,7 +148,7 @@
   }
 
   function isLocked(meal) {
-    return !meal.cutoffAt || Date.now() >= new Date(meal.cutoffAt).getTime();
+    return !meal.cutoffAt || meal.choicesLocked || Date.now() >= new Date(meal.cutoffAt).getTime();
   }
 
   function countdown(meal) {
@@ -242,13 +242,17 @@
     const meal = state.meals.find(item => item.type === state.manageMealType) || state.meals[0];
     if (!meal) return '<section class="panel">No meals are available for this date.</section>';
     const options = state.meals.map(item => '<option value="' + item.type + '"' + (item.type === meal.type ? " selected" : "") + '>' + mealsMeta[item.type].label + '</option>').join("");
-    return '<section class="panel"><div class="panel-head"><div><h2 class="panel-title">Edit today’s menu</h2><p class="panel-subtitle">Changes are visible to residents immediately. Cutoffs lock when reached.</p></div></div><form id="menuForm"><div class="form-grid"><div class="field"><label for="manageMealType">Meal</label><select id="manageMealType">' + options + '</select></div><div class="field"><label for="menuName">Menu description</label><input id="menuName" maxlength="500" required value="' + escapeHtml(meal.menu) + '"></div><div class="field"><label for="cutoff">Choice cutoff</label><input type="datetime-local" id="cutoff" required value="' + toDateTimeInput(meal.cutoffAt) + '"></div><div class="field"><label for="serveStart">Serving starts</label><input type="datetime-local" id="serveStart" required value="' + toDateTimeInput(meal.servingStartAt) + '"></div><div class="field"><label for="serveEnd">Serving ends</label><input type="datetime-local" id="serveEnd" required value="' + toDateTimeInput(meal.servingEndAt) + '"></div></div><div class="form-actions"><button class="button primary" type="submit">Save menu changes</button></div></form></section>';
+    return '<section class="panel"><div class="panel-head"><div><h2 class="panel-title">Edit today’s menu</h2><p class="panel-subtitle">Admins can update menus and schedules at any time. Resident choices stay locked once their cutoff passes.</p></div></div><form id="menuForm"><div class="form-grid"><div class="field"><label for="manageMealType">Meal</label><select id="manageMealType">' + options + '</select></div><div class="field"><label for="menuName">Menu description</label><input id="menuName" maxlength="500" required value="' + escapeHtml(meal.menu) + '"></div><div class="field"><label for="cutoff">Choice cutoff</label><input type="datetime-local" id="cutoff" required value="' + toDateTimeInput(meal.cutoffAt) + '"></div><div class="field"><label for="serveStart">Serving starts</label><input type="datetime-local" id="serveStart" required value="' + toDateTimeInput(meal.servingStartAt) + '"></div><div class="field"><label for="serveEnd">Serving ends</label><input type="datetime-local" id="serveEnd" required value="' + toDateTimeInput(meal.servingEndAt) + '"></div></div><div class="form-actions"><button class="button primary" type="submit">Save menu changes</button></div></form></section>';
   }
 
   function manageMarkup() {
-    const users = state.users.map(user =>
-      '<div class="activity-item"><span class="avatar" style="width:29px;height:29px">' + escapeHtml(initials(user.name)) + '</span><div><p><strong>' + escapeHtml(user.name) + '</strong><br>' + escapeHtml(user.role) + (user.residenceBlock ? " · " + escapeHtml(user.residenceBlock) : "") + '</p></div><span class="status-pill">Active</span></div>'
-    ).join("");
+    const users = state.users.map(user => {
+      const isSelf = user.id === state.user.id;
+      const isLastAdmin = user.role === "admin" && state.userCounts.admins <= 1;
+      const disabled = isSelf || isLastAdmin;
+      const reason = isSelf ? "You cannot delete your own account." : "The last active admin cannot be deleted.";
+      return '<div class="activity-item"><span class="avatar" style="width:29px;height:29px">' + escapeHtml(initials(user.name)) + '</span><div><p><strong>' + escapeHtml(user.name) + '</strong><br>' + escapeHtml(user.role) + (user.residenceBlock ? " · " + escapeHtml(user.residenceBlock) : "") + '</p></div><span class="status-pill">Active</span><button class="button quiet account-delete" type="button" data-action="delete-account" data-user-id="' + escapeHtml(user.id) + '" aria-label="Delete account for ' + escapeHtml(user.name) + '"' + (disabled ? ' disabled title="' + reason + '"' : "") + '>Delete</button></div>';
+    }).join("");
     return '<div class="page-heading"><div><div class="eyebrow">ADMIN WORKSPACE</div><h1>Manage your dining hall</h1><p class="subtitle">Keep menus, meal times and your community up to date.</p></div><span class="status-pill">Maple Hall · North</span></div><div class="management-grid"><div>' + adminMenuMarkup() + '</div><section class="panel"><div class="panel-head"><div><h2 class="panel-title">Your community</h2><p class="panel-subtitle">Residents and kitchen team members</p></div><button class="button" data-action="invite">' + icon("plus") + ' Add account</button></div><div class="stat-grid" style="grid-template-columns:1fr 1fr;margin:0 0 14px;gap:9px"><article class="stat-card" style="min-height:auto;padding:13px"><div class="stat-top">Residents</div><div class="stat-value">' + state.userCounts.residents + '</div><div class="stat-note">Active accounts</div></article><article class="stat-card" style="min-height:auto;padding:13px"><div class="stat-top">Kitchen team</div><div class="stat-value">' + state.userCounts.kitchenTeam + '</div><div class="stat-note">Cooks and admins</div></article></div><div class="activity-list">' + (users || '<p class="subtitle">No users have been added.</p>') + '</div></section></div><dialog class="app-dialog" id="inviteDialog"><form id="inviteForm"><div class="dialog-heading"><div><h2>Add a community account</h2><p>Create a resident, cook or administrator login.</p></div><button class="icon-button" type="button" data-close-dialog aria-label="Close dialog">×</button></div><div class="field"><label for="inviteName">Full name</label><input id="inviteName" required minlength="2" maxlength="100"></div><div class="field"><label for="inviteEmail">Email address</label><input id="inviteEmail" type="email" required maxlength="254"></div><div class="field"><label for="inviteRole">Role</label><select id="inviteRole"><option value="resident">Resident</option><option value="cook">Cook</option><option value="admin">Admin</option></select></div><div class="field"><label for="inviteBlock">Residence block (residents)</label><input id="inviteBlock" maxlength="80"></div><div class="field"><label for="invitePassword">Temporary password</label><input id="invitePassword" type="password" required minlength="10" maxlength="72" autocomplete="new-password"></div><div class="dialog-actions"><button class="button quiet" type="button" data-close-dialog>Cancel</button><button class="button primary" type="submit">Create account</button></div></form></dialog>';
   }
 
@@ -615,6 +619,11 @@
         toggleAuthMode();
         return;
       }
+      if (event.target.closest("#forgotPasswordLink")) {
+        $("#forgotEmail").value = $("#loginEmail").value.trim();
+        $("#forgotPasswordDialog").showModal();
+        return;
+      }
       if (event.target.closest("#startCamera")) {
         await startCamera();
         return;
@@ -630,6 +639,13 @@
           if (action.dataset.action === "export") downloadReport();
           if (action.dataset.action === "invite") $("#inviteDialog").showModal();
           if (action.dataset.action === "log-waste") await logWaste();
+          if (action.dataset.action === "delete-account") {
+            const user = state.users.find(item => item.id === action.dataset.userId);
+            if (!user || !window.confirm("Permanently delete " + user.name + "'s account and meal history? This cannot be undone.")) return;
+            await api("/api/admin/users/" + encodeURIComponent(user.id), { method: "DELETE" });
+            showToast("Account and associated meal history deleted.");
+            await loadRoute("manage", false);
+          }
         } catch (error) {
           showToast(error.message);
         }
@@ -652,6 +668,37 @@
     document.addEventListener("submit", async event => {
       if (event.target.id === "loginForm") {
         await authenticateUser(event);
+      } else if (event.target.id === "forgotPasswordForm") {
+        event.preventDefault();
+        try {
+          const result = await api("/api/auth/forgot-password", {
+            method: "POST",
+            body: JSON.stringify({ email: $("#forgotEmail").value.trim() })
+          });
+          $("#forgotPasswordDialog").close();
+          showToast(result.message);
+        } catch (error) {
+          showToast(error.message);
+        }
+      } else if (event.target.id === "resetPasswordForm") {
+        event.preventDefault();
+        const password = $("#newPassword").value;
+        if (password !== $("#confirmNewPassword").value) {
+          showToast("The passwords do not match.");
+          return;
+        }
+        try {
+          const result = await api("/api/auth/reset-password", {
+            method: "POST",
+            body: JSON.stringify({ token: $("#resetToken").value, password })
+          });
+          $("#resetPasswordDialog").close();
+          window.history.replaceState(null, "", window.location.pathname);
+          showLogin();
+          showToast(result.message);
+        } catch (error) {
+          showToast(error.message);
+        }
       } else if (event.target.id === "menuForm") {
         try { await saveMenu(event); } catch (error) { showToast(error.message); }
       } else if (event.target.id === "manualScanForm") {
@@ -710,6 +757,11 @@
       showLogin();
     }
     bindEvents();
+    const resetToken = new URLSearchParams(window.location.search).get("reset");
+    if (resetToken) {
+      $("#resetToken").value = resetToken;
+      $("#resetPasswordDialog").showModal();
+    }
     setInterval(() => {
       if (state.user && state.route === "today") {
         const banner = $(".deadline-banner .countdown");

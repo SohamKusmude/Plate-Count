@@ -1,6 +1,8 @@
 const bcrypt = require("bcryptjs");
 const express = require("express");
+const mongoose = require("mongoose");
 const Meal = require("../models/Meal");
+const MealResponse = require("../models/MealResponse");
 const User = require("../models/User");
 const { defaultMealsForDate, isDateKey, MEAL_TYPES } = require("../domain/meals");
 const { HttpError, requireRole } = require("../middleware/http");
@@ -19,9 +21,28 @@ router.get("/users", requireRole("admin"), async (req, res) => {
     User.countDocuments({ active: true, role: "admin" })
   ]);
   return res.json({
-    users,
+    users: users.map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      residenceBlock: user.residenceBlock
+    })),
     counts: { residents, kitchenTeam: cooks + admins, cooks, admins }
   });
+});
+
+router.delete("/users/:userId", requireRole("admin"), async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.userId)) throw new HttpError(400, "User ID is invalid.");
+  if (req.params.userId === req.user.id) throw new HttpError(409, "You cannot delete your own administrator account.");
+  const user = await User.findById(req.params.userId);
+  if (!user) throw new HttpError(404, "Account was not found.");
+  if (user.active && user.role === "admin" && await User.countDocuments({ active: true, role: "admin" }) <= 1) {
+    throw new HttpError(409, "The last active administrator account cannot be deleted.");
+  }
+  await MealResponse.deleteMany({ userId: user._id });
+  await User.deleteOne({ _id: user._id });
+  return res.status(204).end();
 });
 
 router.post("/users", requireRole("admin"), async (req, res, next) => {
@@ -82,13 +103,12 @@ router.put("/meals/:type", requireRole("admin"), async (req, res) => {
   }
 
   const existing = await Meal.findOne({ date, type });
-  if (existing && Date.now() >= existing.cutoffAt.getTime()) {
-    throw new HttpError(409, "This meal's cutoff has passed. Its schedule is locked.");
-  }
+  const choicesLockedAt = existing?.choicesLockedAt ||
+    (existing && Date.now() >= existing.cutoffAt.getTime() ? existing.cutoffAt : null);
   const meal = await Meal.findOneAndUpdate(
     { date, type },
     {
-      $set: { menu: menu.trim(), ...schedule, updatedBy: req.user.id },
+      $set: { menu: menu.trim(), ...schedule, choicesLockedAt, updatedBy: req.user.id },
       $setOnInsert: { date, type }
     },
     { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }

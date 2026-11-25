@@ -3,7 +3,7 @@ const express = require("express");
 const cookieParser = require("cookie-parser");
 const helmet = require("helmet");
 const mongoose = require("mongoose");
-const authRoutes = require("./routes/auth");
+const { createAuthRouter } = require("./routes/auth");
 const { router: mealRoutes } = require("./routes/meals");
 const kitchenRoutes = require("./routes/kitchen");
 const checkinRoutes = require("./routes/checkins");
@@ -12,7 +12,7 @@ const reportRoutes = require("./routes/reports");
 const { authenticate } = require("./middleware/auth");
 const { errorHandler } = require("./middleware/http");
 
-function createApp() {
+function createApp(options = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.use(helmet({
@@ -43,7 +43,7 @@ function createApp() {
     const connected = mongoose.connection.readyState === 1;
     return res.status(connected ? 200 : 503).json({ status: connected ? "ok" : "database-unavailable" });
   });
-  app.use("/api/auth", authRoutes);
+  app.use("/api/auth", createAuthRouter(options));
   app.use("/api/meals", authenticate, mealRoutes);
   app.use("/api/kitchen", authenticate, kitchenRoutes);
   app.use("/api/check-ins", authenticate, checkinRoutes);

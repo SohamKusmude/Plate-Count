@@ -54,6 +54,7 @@ router.get("/", async (req, res) => {
       type: meal.type,
       menu: meal.menu,
       cutoffAt: meal.cutoffAt,
+      choicesLocked: Boolean(meal.choicesLockedAt),
       servingStartAt: meal.servingStartAt,
       servingEndAt: meal.servingEndAt,
       myResponse: responseByMealAndUser.get(`${meal.id}:${req.user.id}`)?.status || null,
@@ -77,7 +78,9 @@ router.post("/:mealId/response", requireRole("resident"), async (req, res, next)
     if (status !== "eating" && status !== "skipping") throw new HttpError(400, "Choose eating or skipping.");
     const meal = await Meal.findById(req.params.mealId);
     if (!meal) throw new HttpError(404, "Meal was not found.");
-    if (Date.now() >= meal.cutoffAt.getTime()) throw new HttpError(409, "The cutoff has passed. This meal choice is locked.");
+    if (meal.choicesLockedAt || Date.now() >= meal.cutoffAt.getTime()) {
+      throw new HttpError(409, "The cutoff has passed. This meal choice is locked.");
+    }
 
     const response = await MealResponse.findOneAndUpdate(
       { userId: req.user.id, mealId: meal.id },

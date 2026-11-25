@@ -6,6 +6,7 @@ const mealSchema = new mongoose.Schema({
   type: { type: String, enum: MEAL_TYPES, required: true },
   menu: { type: String, required: true, trim: true, maxlength: 500 },
   cutoffAt: { type: Date, required: true },
+  choicesLockedAt: { type: Date, default: null },
   servingStartAt: { type: Date, required: true },
   servingEndAt: { type: Date, required: true },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }

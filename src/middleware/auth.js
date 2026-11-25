@@ -26,7 +26,7 @@ function clearSessionCookie(res) {
 
 function setSessionCookie(res, user) {
   const token = jwt.sign(
-    { sub: user.id, role: user.role },
+    { sub: user.id, role: user.role, sessionVersion: user.sessionVersion || 0 },
     config.jwtSecret,
     { algorithm: "HS256", expiresIn: "8h", issuer: "plate-count", audience: "plate-count-session" }
   );
@@ -43,8 +43,11 @@ async function authenticate(req, res, next) {
       issuer: "plate-count",
       audience: "plate-count-session"
     });
-    const user = await User.findById(payload.sub).select("name email role residenceBlock active");
+    const user = await User.findById(payload.sub).select("name email role residenceBlock active sessionVersion");
     if (!user || !user.active) throw new HttpError(401, "Your session is no longer active.");
+    if ((payload.sessionVersion || 0) !== (user.sessionVersion || 0)) {
+      throw new HttpError(401, "Your password changed. Please sign in again.");
+    }
     req.user = user;
     return next();
   } catch (error) {

@@ -12,7 +12,21 @@ services:
         value: production
       - key: APP_TIME_ZONE
         value: Asia/Kolkata
+      - key: APP_BASE_URL
+        sync: false
       - key: MONGODB_URI
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
         sync: false
       - key: JWT_SECRET
         generateValue: true

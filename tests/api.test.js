@@ -19,7 +19,10 @@ test("authenticated meal workflow enforces roles, cutoffs, defaults, QR check-in
   await mongoose.connect(mongo.getUri());
   try {
     await Promise.all([User.init(), Meal.init(), MealResponse.init()]);
-    const app = createApp();
+    const resetEmails = [];
+    const app = createApp({
+      sendPasswordResetEmail: async email => resetEmails.push(email)
+    });
     const health = await request(app).get("/api/health");
     assert.equal(health.status, 200);
     const page = await request(app).get("/");
@@ -42,6 +45,36 @@ test("authenticated meal workflow enforces roles, cutoffs, defaults, QR check-in
     const login = await admin.post("/api/auth/login").send({ email: "admin@example.edu", password });
     assert.equal(login.status, 200);
     assert.equal(login.body.user.role, "admin");
+
+    const resetUser = await User.create({
+      name: "Password Reset Resident",
+      email: "reset@example.edu",
+      role: "cook",
+      passwordHash: await bcrypt.hash(password, 4)
+    });
+    const resetSession = request.agent(app);
+    assert.equal((await resetSession.post("/api/auth/login").send({ email: resetUser.email, password })).status, 200);
+    const unknownReset = await request(app).post("/api/auth/forgot-password").send({ email: "unknown@example.edu" });
+    assert.equal(unknownReset.status, 202);
+    assert.equal(resetEmails.length, 0);
+    const forgotPassword = await request(app).post("/api/auth/forgot-password").send({ email: resetUser.email });
+    assert.equal(forgotPassword.status, 202);
+    assert.equal(resetEmails.length, 1);
+    const resetToken = new URL(resetEmails[0].resetUrl).searchParams.get("reset");
+    assert.match(resetToken, /^[a-f0-9]{64}$/);
+    const newPassword = "another-valid-password-2026";
+    const resetPassword = await request(app).post("/api/auth/reset-password").send({
+      token: resetToken,
+      password: newPassword
+    });
+    assert.equal(resetPassword.status, 200);
+    assert.equal((await resetSession.get("/api/auth/me")).status, 401);
+    assert.equal((await request(app).post("/api/auth/login").send({ email: resetUser.email, password })).status, 401);
+    assert.equal((await request(app).post("/api/auth/login").send({ email: resetUser.email, password: newPassword })).status, 200);
+    assert.equal((await request(app).post("/api/auth/reset-password").send({
+      token: resetToken,
+      password
+    })).status, 400);
 
     const residentA = request.agent(app);
     const residentB = request.agent(app);
@@ -92,6 +125,7 @@ test("authenticated meal workflow enforces roles, cutoffs, defaults, QR check-in
     assert.equal(skipAgain.status, 200);
     const lunchUpdate = await admin.put("/api/admin/meals/lunch").send(schedule(-60000, -30000, 30 * 60000));
     assert.equal(lunchUpdate.status, 200);
+    assert.equal(lunchUpdate.body.meal.choicesLockedAt, null);
     const kitchen = await cook.get("/api/kitchen").query({ date: tomorrow });
     assert.equal(kitchen.status, 200);
     assert.equal(kitchen.body.timeZone, "UTC");
@@ -127,10 +161,19 @@ test("authenticated meal workflow enforces roles, cutoffs, defaults, QR check-in
     assert.equal(report.body.summary.noShows, 2);
     assert.equal(report.body.daily.length, 1);
     assert.equal((await admin.get("/api/reports").query({ to: "not-a-date" })).status, 400);
+    const lunchScheduleOverride = await admin.put("/api/admin/meals/lunch").send(schedule(60 * 60000, 90 * 60000, 120 * 60000));
+    assert.equal(lunchScheduleOverride.status, 200);
+    assert.ok(lunchScheduleOverride.body.meal.choicesLockedAt);
+    assert.equal((await residentA.post(`/api/meals/${lunchId}/response`).send({ status: "eating" })).status, 409);
 
     const history = await residentB.get("/api/meals/history");
     assert.equal(history.body.history[0].attendance, "checked-in");
     assert.equal(await MealResponse.countDocuments({ userId: signupA.body.user.id, mealId: lunchId }), 1);
+    assert.equal((await residentB.delete(`/api/admin/users/${signupA.body.user.id}`)).status, 403);
+    assert.equal((await admin.delete(`/api/admin/users/${signupA.body.user.id}`)).status, 204);
+    assert.equal(await MealResponse.countDocuments({ userId: signupA.body.user.id }), 0);
+    assert.equal(await User.exists({ _id: signupA.body.user.id }), null);
+    assert.equal((await admin.delete(`/api/admin/users/${login.body.user.id}`)).status, 409);
     assert.equal((await residentB.post("/api/auth/logout")).status, 204);
     assert.deepEqual((await residentB.get("/api/auth/me")).body, { user: null });
   } finally {
