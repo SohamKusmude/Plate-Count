@@ -251,10 +251,10 @@
       selectedStatus === "Coming up" ? "On track" :
         selectedStatus === "Serving now" ? "Preparing" : "Prep not marked complete";
     const prepAction = selectedMeal && !selectedMeal.prepCompletedAt
-      ? '<button class="button primary" data-action="complete-prep" data-meal-id="' + selectedMeal.id + '">Mark prep complete</button>'
+      ? '<button class="button primary" data-action="complete-prep" data-meal-id="' + selectedMeal.mealId + '">Mark prep complete</button>'
       : selectedMeal ? '<span class="status-pill">Prep complete · ' + escapeHtml(formatTime(selectedMeal.prepCompletedAt)) + '</span>' : "";
     const servingAction = selectedMeal && selectedStatus === "Serving complete" && !selectedMeal.servingCompletedAt
-      ? '<button class="button quiet" data-action="complete-serving" data-meal-id="' + selectedMeal.id + '">Mark serving complete</button>'
+      ? '<button class="button quiet" data-action="complete-serving" data-meal-id="' + selectedMeal.mealId + '">Mark serving complete</button>'
       : selectedMeal?.servingCompletedAt
         ? '<span class="status-pill">Serving confirmed · ' + escapeHtml(formatTime(selectedMeal.servingCompletedAt)) + '</span>'
         : "";
