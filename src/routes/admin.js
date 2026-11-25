@@ -103,8 +103,9 @@ router.put("/meals/:type", requireRole("admin"), async (req, res) => {
   }
 
   const existing = await Meal.findOne({ date, type });
-  const choicesLockedAt = existing?.choicesLockedAt ||
-    (existing && Date.now() >= existing.cutoffAt.getTime() ? existing.cutoffAt : null);
+  const choicesLockedAt = schedule.cutoffAt.getTime() <= Date.now()
+    ? (existing?.choicesLockedAt || schedule.cutoffAt)
+    : null;
   const meal = await Meal.findOneAndUpdate(
     { date, type },
     {

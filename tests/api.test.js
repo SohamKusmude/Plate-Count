@@ -125,11 +125,16 @@ test("authenticated meal workflow enforces roles, cutoffs, defaults, QR check-in
     assert.equal(skipAgain.status, 200);
     const lunchUpdate = await admin.put("/api/admin/meals/lunch").send(schedule(-60000, -30000, 30 * 60000));
     assert.equal(lunchUpdate.status, 200);
-    assert.equal(lunchUpdate.body.meal.choicesLockedAt, null);
+    assert.ok(lunchUpdate.body.meal.choicesLockedAt);
+    assert.equal((await residentA.post(`/api/meals/${lunchId}/response`).send({ status: "eating" })).status, 409);
     const kitchen = await cook.get("/api/kitchen").query({ date: tomorrow });
     assert.equal(kitchen.status, 200);
     assert.equal(kitchen.body.timeZone, "UTC");
-    assert.equal(kitchen.body.meals.find(meal => meal.type === "lunch").expectedCount, 1);
+    const kitchenLunch = kitchen.body.meals.find(meal => meal.type === "lunch");
+    assert.equal(kitchenLunch.expectedCount, 1);
+    assert.equal(kitchenLunch.menu, "Seasonal lunch");
+    assert.equal(kitchenLunch.servingStartAt, schedule(-60000, -30000, 30 * 60000).servingStartAt);
+    assert.equal(kitchenLunch.servingEndAt, schedule(-60000, -30000, 30 * 60000).servingEndAt);
 
     const pass = await residentB.get("/api/meals/lunch/pass").query({ date: tomorrow });
     assert.equal(pass.status, 200);
@@ -163,8 +168,8 @@ test("authenticated meal workflow enforces roles, cutoffs, defaults, QR check-in
     assert.equal((await admin.get("/api/reports").query({ to: "not-a-date" })).status, 400);
     const lunchScheduleOverride = await admin.put("/api/admin/meals/lunch").send(schedule(60 * 60000, 90 * 60000, 120 * 60000));
     assert.equal(lunchScheduleOverride.status, 200);
-    assert.ok(lunchScheduleOverride.body.meal.choicesLockedAt);
-    assert.equal((await residentA.post(`/api/meals/${lunchId}/response`).send({ status: "eating" })).status, 409);
+    assert.equal(lunchScheduleOverride.body.meal.choicesLockedAt, null);
+    assert.equal((await residentA.post(`/api/meals/${lunchId}/response`).send({ status: "eating" })).status, 200);
 
     const history = await residentB.get("/api/meals/history");
     assert.equal(history.body.history[0].attendance, "checked-in");

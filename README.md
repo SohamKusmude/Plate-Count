@@ -6,7 +6,7 @@ Plate Count is a meal-planning and food-waste reduction app for hostels and camp
 
 - Resident signup and sign-in; accounts are assigned the resident role by the server.
 - Admin-managed accounts for residents, cooks and admins. Roles cannot be chosen during public signup.
-- Meal menus and schedules stored in MongoDB. Admins can update them at any time; once a cutoff has passed, resident choices stay locked even if the schedule is later changed.
+- Meal menus and schedules stored in MongoDB. Admins can update them at any time; moving a cutoff into the future reopens resident choices, while a cutoff in the past keeps them locked.
 - One response per resident and meal. Unanswered residents remain included in the kitchen headcount.
 - Cook/admin-only kitchen headcounts and QR scanner.
 - Short-lived, signed meal passes; check-in scans are accepted only during the serving window.
@@ -39,7 +39,7 @@ Requirements: Node.js 20+ and a MongoDB instance (local MongoDB or MongoDB Atlas
 
    Remove the three `ADMIN_*` values when setup is complete. Sign in as that admin to create cook and other admin accounts.
 
-Default meal schedules use `APP_TIME_ZONE` (default `Asia/Kolkata`). Change it to an IANA time-zone name for the dining hall. A date-specific meal is created with the default menu the first time it is requested; admins can edit the menu and schedule at any time. Updating a schedule after its cutoff does not unlock resident choices.
+Default meal schedules use `APP_TIME_ZONE` (default `Asia/Kolkata`). Change it to an IANA time-zone name for the dining hall. A date-specific meal is created with the default menu the first time it is requested; admins can edit the menu and schedule at any time. If an admin moves a cutoff into the future, residents can update their choices until that new cutoff.
 
 ### Password recovery email
 
