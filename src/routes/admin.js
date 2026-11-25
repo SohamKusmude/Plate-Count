@@ -103,13 +103,24 @@ router.put("/meals/:type", requireRole("admin"), async (req, res) => {
   }
 
   const existing = await Meal.findOne({ date, type });
+  const servingWindowChanged = !existing ||
+    existing.servingStartAt.getTime() !== schedule.servingStartAt.getTime() ||
+    existing.servingEndAt.getTime() !== schedule.servingEndAt.getTime();
+  const prepChanged = servingWindowChanged || !existing || existing.menu !== menu.trim();
   const choicesLockedAt = schedule.cutoffAt.getTime() <= Date.now()
     ? (existing?.choicesLockedAt || schedule.cutoffAt)
     : null;
   const meal = await Meal.findOneAndUpdate(
     { date, type },
     {
-      $set: { menu: menu.trim(), ...schedule, choicesLockedAt, updatedBy: req.user.id },
+      $set: {
+        menu: menu.trim(),
+        ...schedule,
+        choicesLockedAt,
+        prepCompletedAt: prepChanged ? null : existing.prepCompletedAt,
+        servingCompletedAt: servingWindowChanged ? null : existing.servingCompletedAt,
+        updatedBy: req.user.id
+      },
       $setOnInsert: { date, type }
     },
     { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }

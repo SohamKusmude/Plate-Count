@@ -5,7 +5,7 @@ const config = require("../config");
 const Meal = require("../models/Meal");
 const MealResponse = require("../models/MealResponse");
 const User = require("../models/User");
-const { dateInTimeZone, defaultMealsForDate, expectedHeadcount, isDateKey, MEAL_TYPES } = require("../domain/meals");
+const { dateInTimeZone, defaultMealsForDate, expectedHeadcount, isDateKey, MEAL_TYPES, servingStatus } = require("../domain/meals");
 const { HttpError, requireRole } = require("../middleware/http");
 
 const router = express.Router();
@@ -57,6 +57,9 @@ router.get("/", async (req, res) => {
       choicesLocked: Boolean(meal.choicesLockedAt),
       servingStartAt: meal.servingStartAt,
       servingEndAt: meal.servingEndAt,
+      servingStatus: servingStatus(meal),
+      prepCompletedAt: meal.prepCompletedAt,
+      servingCompletedAt: meal.servingCompletedAt,
       myResponse: responseByMealAndUser.get(`${meal.id}:${req.user.id}`)?.status || null,
       myCheckedInAt: responseByMealAndUser.get(`${meal.id}:${req.user.id}`)?.checkedInAt || null
     };

@@ -5,6 +5,7 @@ const {
   defaultMealsForDate,
   expectedHeadcount,
   isDateKey,
+  servingStatus,
   zonedDateTime
 } = require("../src/domain/meals");
 
@@ -27,4 +28,18 @@ test("unanswered residents count as eating; skips reduce the headcount only once
   assert.equal(expectedHeadcount(128, 3), 125);
   assert.equal(expectedHeadcount(2, 9), 0);
   assert.throws(() => expectedHeadcount(2, -1), TypeError);
+});
+
+test("derives meal serving status at the scheduled boundaries", () => {
+  const meal = {
+    servingStartAt: new Date("2026-11-25T12:30:00.000Z"),
+    servingEndAt: new Date("2026-11-25T14:00:00.000Z"),
+    servingCompletedAt: null
+  };
+  assert.equal(servingStatus(meal, new Date("2026-11-25T12:29:59.999Z")), "Coming up");
+  assert.equal(servingStatus(meal, new Date("2026-11-25T12:30:00.000Z")), "Serving now");
+  assert.equal(servingStatus(meal, new Date("2026-11-25T13:59:59.999Z")), "Serving now");
+  assert.equal(servingStatus(meal, new Date("2026-11-25T14:00:00.000Z")), "Serving complete");
+  meal.servingCompletedAt = new Date("2026-11-25T13:00:00.000Z");
+  assert.equal(servingStatus(meal, new Date("2026-11-25T13:30:00.000Z")), "Serving complete");
 });

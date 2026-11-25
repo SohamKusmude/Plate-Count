@@ -9,6 +9,8 @@ const mealSchema = new mongoose.Schema({
   choicesLockedAt: { type: Date, default: null },
   servingStartAt: { type: Date, required: true },
   servingEndAt: { type: Date, required: true },
+  prepCompletedAt: { type: Date, default: null },
+  servingCompletedAt: { type: Date, default: null },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
 }, { timestamps: true });
 

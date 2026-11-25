@@ -7,6 +7,7 @@ Plate Count is a meal-planning and food-waste reduction app for hostels and camp
 - Resident signup and sign-in; accounts are assigned the resident role by the server.
 - Admin-managed accounts for residents, cooks and admins. Roles cannot be chosen during public signup.
 - Meal menus and schedules stored in MongoDB. Admins can update them at any time; moving a cutoff into the future reopens resident choices, while a cutoff in the past keeps them locked.
+- Meal service status changes automatically from the saved serving window and is shown to residents and the kitchen. Cooks can mark prep complete and confirm serving completion after its scheduled end; changing the menu or serving window clears stale completion marks.
 - One response per resident and meal. Unanswered residents remain included in the kitchen headcount.
 - Cook/admin-only kitchen headcounts and QR scanner.
 - Short-lived, signed meal passes; check-in scans are accepted only during the serving window.
@@ -63,4 +64,4 @@ The included `render.yaml` defines a Node web service and generates separate ses
 npm test
 ```
 
-The tests cover meal date/time handling and the default-eating headcount rule. A running MongoDB is required to exercise the API end to end.
+The tests cover meal date/time handling, serving status boundaries, and authenticated meal, kitchen, cutoff and check-in API workflows.

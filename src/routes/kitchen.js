@@ -1,7 +1,9 @@
 const express = require("express");
+const mongoose = require("mongoose");
+const Meal = require("../models/Meal");
 const MealResponse = require("../models/MealResponse");
 const User = require("../models/User");
-const { dateInTimeZone, expectedHeadcount, isDateKey } = require("../domain/meals");
+const { dateInTimeZone, expectedHeadcount, isDateKey, servingStatus } = require("../domain/meals");
 const { HttpError, requireRole } = require("../middleware/http");
 const { ensureMeals } = require("./meals");
 const config = require("../config");
@@ -31,6 +33,9 @@ router.get("/", requireRole("cook", "admin"), async (req, res) => {
       cutoffAt: meal.cutoffAt,
       servingStartAt: meal.servingStartAt,
       servingEndAt: meal.servingEndAt,
+      servingStatus: servingStatus(meal),
+      prepCompletedAt: meal.prepCompletedAt,
+      servingCompletedAt: meal.servingCompletedAt,
       residentCount,
       responseCount: rows.length,
       expectedCount,
@@ -60,6 +65,31 @@ router.get("/", requireRole("cook", "admin"), async (req, res) => {
     recentCheckIns,
     meals: counts
   });
+});
+
+router.post("/:mealId/prep-complete", requireRole("cook", "admin"), async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.mealId)) throw new HttpError(400, "Meal ID is invalid.");
+  const meal = await Meal.findById(req.params.mealId);
+  if (!meal) throw new HttpError(404, "Meal was not found.");
+  if (!meal.prepCompletedAt) {
+    meal.prepCompletedAt = new Date();
+    await meal.save();
+  }
+  return res.json({ prepCompletedAt: meal.prepCompletedAt });
+});
+
+router.post("/:mealId/serving-complete", requireRole("cook", "admin"), async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.mealId)) throw new HttpError(400, "Meal ID is invalid.");
+  const meal = await Meal.findById(req.params.mealId);
+  if (!meal) throw new HttpError(404, "Meal was not found.");
+  if (Date.now() < meal.servingEndAt.getTime()) {
+    throw new HttpError(409, "Serving can only be marked complete after its scheduled end time.");
+  }
+  if (!meal.servingCompletedAt) {
+    meal.servingCompletedAt = new Date();
+    await meal.save();
+  }
+  return res.json({ servingCompletedAt: meal.servingCompletedAt });
 });
 
 module.exports = router;

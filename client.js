@@ -40,6 +40,7 @@
     meals: [],
     history: [],
     kitchen: null,
+    kitchenMealType: "lunch",
     pass: null,
     passError: "",
     passType: "",
@@ -151,6 +152,12 @@
     return !meal.cutoffAt || meal.choicesLocked || Date.now() >= new Date(meal.cutoffAt).getTime();
   }
 
+  function servingStatus(meal) {
+    if (meal.servingCompletedAt || Date.now() >= new Date(meal.servingEndAt).getTime()) return "Serving complete";
+    if (Date.now() >= new Date(meal.servingStartAt).getTime()) return "Serving now";
+    return "Coming up";
+  }
+
   function countdown(meal) {
     const seconds = Math.max(0, Math.floor((new Date(meal.cutoffAt).getTime() - Date.now()) / 1000));
     if (seconds <= 0) return "Locked";
@@ -163,12 +170,13 @@
   function mealCard(meal) {
     const meta = mealsMeta[meal.type] || mealsMeta.lunch;
     const locked = isLocked(meal);
+    const status = servingStatus(meal);
     const currentStatus = meal.myResponse;
     const attendance = state.user.role !== "resident" && Number.isInteger(meal.expectedCount)
       ? '<span>' + icon("users") + '<b>' + meal.expectedCount + '</b> expected</span>'
       : "";
     return '<article class="meal-card"><div class="meal-photo ' + meta.color + '"><span class="meal-emoji">' + meta.icon + '</span></div>' +
-      '<div><h3 class="meal-name">' + escapeHtml(meta.label) + '</h3><p class="meal-description">' + escapeHtml(meal.menu) + '</p><div class="meal-meta"><span>' + icon("clock") + formatTime(meal.servingStartAt) + ' – ' + formatTime(meal.servingEndAt) + '</span>' + attendance + '</div></div>' +
+      '<div><h3 class="meal-name">' + escapeHtml(meta.label) + '</h3><p class="meal-description">' + escapeHtml(meal.menu) + '</p><div class="meal-meta"><span>' + icon("clock") + formatTime(meal.servingStartAt) + ' – ' + formatTime(meal.servingEndAt) + '</span><span class="status-pill meal-service-status' + (status === "Coming up" ? " orange" : "") + '" data-meal-status="' + meal.id + '">' + status + '</span>' + attendance + '</div></div>' +
       '<div class="meal-side"><div class="meal-cutoff">' + (locked ? "Choices locked" : "Closes in <strong>" + countdown(meal) + "</strong>") + '</div><div class="choice-row"><button class="choice-button ' + (currentStatus === "eating" ? "selected-eat" : "") + '" data-choice="eating" data-meal="' + meal.id + '"' + (locked ? " disabled" : "") + '>✓ Eating</button><button class="choice-button ' + (currentStatus === "skipping" ? "selected-skip" : "") + '" data-choice="skipping" data-meal="' + meal.id + '"' + (locked ? " disabled" : "") + '>Skipping</button></div></div></article>';
   }
 
@@ -222,20 +230,44 @@
   function kitchenMarkup() {
     const dashboard = state.kitchen;
     if (!dashboard) return '<div class="panel">Loading kitchen counts…</div>';
-    const mealCards = dashboard.meals.map(meal => {
+    const mealTypes = Object.keys(mealsMeta);
+    const meals = dashboard.meals.slice().sort((left, right) => mealTypes.indexOf(left.type) - mealTypes.indexOf(right.type));
+    const mealCards = meals.map(meal => {
       const meta = mealsMeta[meal.type];
-      const status = Date.now() < new Date(meal.servingStartAt) ? "Coming up" : Date.now() < new Date(meal.servingEndAt) ? "Serving now" : "Served";
+      const status = servingStatus(meal);
       const badge = status === "Coming up" ? "orange" : "";
-      return '<article class="meal-count-card"><div class="meal-count-head"><span>' + meta.icon + ' &nbsp;' + meta.label + '</span><span class="status-pill ' + badge + '">' + status + '</span></div><div class="meal-menu-detail">' + escapeHtml(meal.menu) + '</div><div class="meal-serving-time">Serving ' + escapeHtml(formatTime(meal.servingStartAt)) + ' – ' + escapeHtml(formatTime(meal.servingEndAt)) + '</div><strong>' + meal.expectedCount + ' <small>/ ' + dashboard.residentCount + '</small></strong><div class="count-note"><span>' + meal.responseCount + ' responded</span><span>' + meal.checkedInCount + ' checked in' + (meal.noShowCount == null ? "" : " · " + meal.noShowCount + " no-shows") + '</span></div></article>';
+      const selected = meal.type === state.kitchenMealType;
+      return '<button type="button" class="meal-count-card' + (selected ? " selected" : "") + '" data-kitchen-meal="' + meal.type + '" aria-pressed="' + selected + '">' +
+        '<span class="meal-count-head"><span>' + meta.icon + ' &nbsp;' + meta.label + '</span><span class="status-pill ' + badge + '">' + status + '</span></span>' +
+        '<span class="meal-menu-detail">' + escapeHtml(meal.menu) + '</span>' +
+        '<span class="meal-serving-time">Serving ' + escapeHtml(formatTime(meal.servingStartAt)) + ' – ' + escapeHtml(formatTime(meal.servingEndAt)) + '</span>' +
+        '<strong>' + meal.expectedCount + ' <small>/ ' + dashboard.residentCount + '</small></strong>' +
+        '<span class="count-note"><span>' + meal.responseCount + ' responded</span><span>' + meal.checkedInCount + ' checked in' + (meal.noShowCount == null ? "" : " · " + meal.noShowCount + " no-shows") + '</span></span></button>';
     }).join("");
-    const lunch = dashboard.meals.find(meal => meal.type === "lunch") || dashboard.meals[0];
+    const selectedMeal = meals.find(meal => meal.type === state.kitchenMealType) || meals[0];
+    const selectedMeta = selectedMeal ? mealsMeta[selectedMeal.type] : null;
+    const selectedStatus = selectedMeal ? servingStatus(selectedMeal) : "";
+    const prepStatus = selectedMeal?.prepCompletedAt ? "Prep complete" :
+      selectedStatus === "Coming up" ? "On track" :
+        selectedStatus === "Serving now" ? "Preparing" : "Prep not marked complete";
+    const prepAction = selectedMeal && !selectedMeal.prepCompletedAt
+      ? '<button class="button primary" data-action="complete-prep" data-meal-id="' + selectedMeal.id + '">Mark prep complete</button>'
+      : selectedMeal ? '<span class="status-pill">Prep complete · ' + escapeHtml(formatTime(selectedMeal.prepCompletedAt)) + '</span>' : "";
+    const servingAction = selectedMeal && selectedStatus === "Serving complete" && !selectedMeal.servingCompletedAt
+      ? '<button class="button quiet" data-action="complete-serving" data-meal-id="' + selectedMeal.id + '">Mark serving complete</button>'
+      : selectedMeal?.servingCompletedAt
+        ? '<span class="status-pill">Serving confirmed · ' + escapeHtml(formatTime(selectedMeal.servingCompletedAt)) + '</span>'
+        : "";
     const recentCheckins = (dashboard.recentCheckIns || []).map(item =>
       '<div class="activity-item"><span class="activity-icon">' + icon("check") + '</span><div><p><strong>' + escapeHtml(item.name) + '</strong> checked in</p><time>' + escapeHtml(formatTime(item.checkedInAt)) + (item.residenceBlock ? " · " + escapeHtml(item.residenceBlock) : "") + '</time></div></div>'
     ).join("");
-    const prepRows = lunch ? ['Menu', 'Kitchen prep'].map(label =>
-      '<tr><td><strong>' + label + '</strong></td><td class="muted">' + lunch.expectedCount + ' portions</td><td>' + (lunch.expectedCount + Math.ceil(lunch.expectedCount * .04)) + ' portions</td><td><span class="status-pill">On track</span></td></tr>'
+    const targetPortions = selectedMeal ? selectedMeal.expectedCount + Math.ceil(selectedMeal.expectedCount * .04) : 0;
+    const prepRows = selectedMeal ? [selectedMeal.menu, "Kitchen prep"].map(label =>
+      '<tr><td><strong>' + escapeHtml(label) + '</strong></td><td class="muted">' + selectedMeal.expectedCount + (selectedMeal.expectedCount === 1 ? " portion" : " portions") + '</td><td>' + targetPortions + (targetPortions === 1 ? " portion" : " portions") + '</td><td><span class="status-pill' + (prepStatus === "On track" ? " orange" : "") + '">' + prepStatus + '</span></td></tr>'
     ).join("") : "";
-    return '<div class="page-heading"><div><div class="eyebrow"><span class="pulse"></span> KITCHEN HEADCOUNT · ' + escapeHtml(formatDate(dashboard.date)) + '</div><h1>Good afternoon, chef</h1><p class="subtitle">Expected covers include residents with no response.</p></div><button class="button" id="refreshCounts">' + icon("clock") + ' Refresh counts</button></div><div class="kitchen-hero"><section class="kitchen-total"><div class="tagline">' + icon("users") + ' EXPECTED TODAY · ALL MEALS</div><h2>' + dashboard.totalExpected + '</h2><p>meal covers expected from ' + dashboard.residentCount + ' active residents</p></section><section class="kitchen-target"><div><div class="target-label">Response rate today</div><div class="target-value">' + dashboard.responseRate + '<small>% across all meals</small></div></div><div class="target-bar"><div class="progress-track"><div class="progress-fill" style="width:' + dashboard.responseRate + '%"></div></div><p class="progress-caption">No response defaults to eating.</p></div></section></div><div class="meal-count-grid">' + mealCards + '</div><div class="two-col"><section class="panel"><div class="panel-head"><div><h2 class="panel-title">Prep estimates</h2><p class="panel-subtitle">' + (lunch ? escapeHtml(lunch.menu) : "Today’s meal preparation") + '</p></div><button class="button" data-action="log-waste">' + icon("plus") + ' Log waste</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Prep item</th><th>Expected</th><th>Target (+4%)</th><th>Status</th></tr></thead><tbody>' + prepRows + '</tbody></table></div></section><section class="panel"><div class="panel-head"><div><h2 class="panel-title">Recent check-ins</h2><p class="panel-subtitle">Scanned at the meal counter</p></div><button class="button quiet" data-go="checkin">Scan pass →</button></div><div class="activity-list">' + (recentCheckins || '<p class="subtitle">No check-ins recorded yet today.</p>') + '</div></section></div>';
+    return '<div class="page-heading"><div><div class="eyebrow"><span class="pulse"></span> KITCHEN HEADCOUNT · ' + escapeHtml(formatDate(dashboard.date)) + '</div><h1>Good afternoon, chef</h1><p class="subtitle">Expected covers include residents with no response.</p></div><button class="button" id="refreshCounts">' + icon("clock") + ' Refresh counts</button></div>' +
+      '<div class="kitchen-hero"><section class="kitchen-total"><div class="tagline">' + icon("users") + ' EXPECTED TODAY · ALL MEALS</div><h2>' + dashboard.totalExpected + '</h2><p>meal covers expected from ' + dashboard.residentCount + ' active residents</p></section><section class="kitchen-target"><div><div class="target-label">Response rate today</div><div class="target-value">' + dashboard.responseRate + '<small>% across all meals</small></div></div><div class="target-bar"><div class="progress-track"><div class="progress-fill" style="width:' + dashboard.responseRate + '%"></div></div><p class="progress-caption">No response defaults to eating.</p></div></section></div>' +
+      '<div class="meal-count-grid">' + mealCards + '</div><div class="two-col"><section class="panel"><div class="panel-head"><div><div class="prep-title-row"><h2 class="panel-title">' + (selectedMeta ? escapeHtml(selectedMeta.label) + " prep" : "Meal prep estimates") + '</h2><span class="status-pill' + (prepStatus === "On track" ? " orange" : "") + '">' + prepStatus + '</span></div><p class="panel-subtitle">' + (selectedMeal ? escapeHtml(selectedMeal.menu) + ' · Serving ' + escapeHtml(formatTime(selectedMeal.servingStartAt)) + ' – ' + escapeHtml(formatTime(selectedMeal.servingEndAt)) + ' · ' + escapeHtml(selectedStatus) : "Today’s meal preparation") + '</p></div><div class="kitchen-actions">' + prepAction + servingAction + '<button class="button" data-action="log-waste">' + icon("plus") + ' Log waste</button></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Prep item</th><th>Expected</th><th>Target (+4%)</th><th>Status</th></tr></thead><tbody>' + prepRows + '</tbody></table></div></section><section class="panel"><div class="panel-head"><div><h2 class="panel-title">Recent check-ins</h2><p class="panel-subtitle">Scanned at the meal counter</p></div><button class="button quiet" data-go="checkin">Scan pass →</button></div><div class="activity-list">' + (recentCheckins || '<p class="subtitle">No check-ins recorded yet today.</p>') + '</div></section></div>';
   }
 
   function adminMenuMarkup() {
@@ -565,6 +597,12 @@
 
   function bindEvents() {
     document.addEventListener("click", async event => {
+      const kitchenMeal = event.target.closest("[data-kitchen-meal]");
+      if (kitchenMeal) {
+        state.kitchenMealType = kitchenMeal.dataset.kitchenMeal;
+        render();
+        return;
+      }
       const routeLink = event.target.closest("[data-route]");
       if (routeLink) {
         event.preventDefault();
@@ -639,6 +677,16 @@
           if (action.dataset.action === "export") downloadReport();
           if (action.dataset.action === "invite") $("#inviteDialog").showModal();
           if (action.dataset.action === "log-waste") await logWaste();
+          if (action.dataset.action === "complete-prep") {
+            await api("/api/kitchen/" + encodeURIComponent(action.dataset.mealId) + "/prep-complete", { method: "POST" });
+            showToast("Prep marked complete.");
+            await loadRoute("kitchen", false);
+          }
+          if (action.dataset.action === "complete-serving") {
+            await api("/api/kitchen/" + encodeURIComponent(action.dataset.mealId) + "/serving-complete", { method: "POST" });
+            showToast("Serving marked complete.");
+            await loadRoute("kitchen", false);
+          }
           if (action.dataset.action === "delete-account") {
             const user = state.users.find(item => item.id === action.dataset.userId);
             if (!user || !window.confirm("Permanently delete " + user.name + "'s account and meal history? This cannot be undone.")) return;
@@ -764,6 +812,13 @@
     }
     setInterval(() => {
       if (state.user && state.route === "today") {
+        $$("[data-meal-status]").forEach(badge => {
+          const meal = state.meals.find(item => item.id === badge.dataset.mealStatus);
+          if (!meal) return;
+          const status = servingStatus(meal);
+          badge.textContent = status;
+          badge.classList.toggle("orange", status === "Coming up");
+        });
         const banner = $(".deadline-banner .countdown");
         if (banner) {
           const meal = state.meals.filter(item => !isLocked(item)).sort((a, b) => new Date(a.cutoffAt) - new Date(b.cutoffAt))[0];

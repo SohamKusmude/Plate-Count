@@ -71,6 +71,12 @@ function expectedHeadcount(residentCount, skippingCount) {
   return Math.max(0, residentCount - Math.min(residentCount, skippingCount));
 }
 
+function servingStatus(meal, now = Date.now()) {
+  if (meal.servingCompletedAt || now >= new Date(meal.servingEndAt).getTime()) return "Serving complete";
+  if (now >= new Date(meal.servingStartAt).getTime()) return "Serving now";
+  return "Coming up";
+}
+
 module.exports = {
   DEFAULT_SCHEDULE,
   MEAL_TYPES,
@@ -78,5 +84,6 @@ module.exports = {
   defaultMealsForDate,
   expectedHeadcount,
   isDateKey,
+  servingStatus,
   zonedDateTime
 };

@@ -221,6 +221,7 @@
     .status-pill::before { width: 5px; height: 5px; border-radius: 50%; background: currentColor; content: ""; }
     .status-pill.orange { background: color-mix(in srgb, var(--orange) 13%, var(--panel)); color: var(--orange); }
     .status-pill.red { background: color-mix(in srgb, var(--red) 13%, var(--panel)); color: var(--red); }
+    .kitchen-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 7px; }
     .kitchen-hero { display: grid; grid-template-columns: 1.5fr .8fr; gap: 15px; margin-bottom: 17px; }
     .kitchen-total { position: relative; overflow: hidden; padding: 21px; border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line)); border-radius: var(--radius); background: radial-gradient(ellipse at 95% 0%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 45%), var(--panel); }
     .kitchen-total::after { position: absolute; right: 18px; bottom: -40px; width: 175px; height: 175px; border: 1px solid color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 50%; box-shadow: 0 0 0 18px color-mix(in srgb, var(--accent) 3%, transparent), 0 0 0 36px color-mix(in srgb, var(--accent) 3%, transparent); content: ""; }
@@ -235,14 +236,17 @@
     .target-value small { color: var(--muted); font: 11px "DM Sans", sans-serif; }
     .target-bar { margin-top: 14px; }
     .meal-count-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 17px; }
-    .meal-count-card { padding: 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--panel); transition: transform .22s ease, border-color .22s ease; }
+    .meal-count-card { width: 100%; padding: 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--panel); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
     .meal-count-card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+    .meal-count-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+    .meal-count-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
     .meal-count-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 10px; }
     .meal-count-card strong { display: block; margin-top: 12px; font: 700 29px "Manrope", sans-serif; letter-spacing: -1px; }
     .meal-count-card strong small { color: var(--muted); font: 10px "DM Sans", sans-serif; letter-spacing: 0; }
     .meal-menu-detail { margin-top: 8px; color: var(--text); font-size: 10px; line-height: 1.5; }
     .meal-serving-time { margin-top: 3px; color: var(--muted); font-size: 9px; }
     .count-note { display: flex; justify-content: space-between; margin-top: 7px; color: var(--muted); font-size: 9px; }
+    .prep-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
     .two-col { display: grid; grid-template-columns: 1.25fr .75fr; gap: 17px; }
     .qr-layout { display: grid; grid-template-columns: 1fr minmax(225px, .72fr); gap: 20px; align-items: center; }
     .qr-placeholder { width: 196px; height: 196px; display: grid; place-items: center; margin: 6px auto; padding: 13px; border-radius: 16px; background: #fff; box-shadow: 0 12px 30px rgba(0,0,0,.14); }

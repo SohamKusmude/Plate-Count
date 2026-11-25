@@ -133,8 +133,17 @@ test("authenticated meal workflow enforces roles, cutoffs, defaults, QR check-in
     const kitchenLunch = kitchen.body.meals.find(meal => meal.type === "lunch");
     assert.equal(kitchenLunch.expectedCount, 1);
     assert.equal(kitchenLunch.menu, "Seasonal lunch");
+    assert.equal(kitchenLunch.servingStatus, "Serving now");
     assert.equal(kitchenLunch.servingStartAt, schedule(-60000, -30000, 30 * 60000).servingStartAt);
     assert.equal(kitchenLunch.servingEndAt, schedule(-60000, -30000, 30 * 60000).servingEndAt);
+
+    const prepComplete = await cook.post(`/api/kitchen/${lunchId}/prep-complete`);
+    assert.equal(prepComplete.status, 200);
+    assert.ok(prepComplete.body.prepCompletedAt);
+    assert.equal((await residentA.post(`/api/kitchen/${lunchId}/prep-complete`)).status, 403);
+    const residentLunch = (await residentA.get("/api/meals").query({ date: tomorrow })).body.meals.find(meal => meal.type === "lunch");
+    assert.equal(residentLunch.servingStatus, "Serving now");
+    assert.ok(residentLunch.prepCompletedAt);
 
     const pass = await residentB.get("/api/meals/lunch/pass").query({ date: tomorrow });
     assert.equal(pass.status, 200);
@@ -153,6 +162,13 @@ test("authenticated meal workflow enforces roles, cutoffs, defaults, QR check-in
       menu: "Breakfast"
     });
     assert.equal(breakfastUpdate.status, 200);
+    assert.equal(breakfastUpdate.body.meal.servingCompletedAt, null);
+    const breakfastStatus = (await residentA.get("/api/meals").query({ date: tomorrow })).body.meals.find(meal => meal.type === "breakfast");
+    assert.equal(breakfastStatus.servingStatus, "Serving complete");
+    const servingComplete = await cook.post(`/api/kitchen/${mealByType.breakfast.id}/serving-complete`);
+    assert.equal(servingComplete.status, 200);
+    assert.ok(servingComplete.body.servingCompletedAt);
+    assert.equal((await cook.post(`/api/kitchen/${lunchId}/serving-complete`)).status, 409);
     const lockedChoice = await residentA.post(`/api/meals/${mealByType.breakfast.id}/response`).send({ status: "skipping" });
     assert.equal(lockedChoice.status, 409);
 
@@ -166,9 +182,17 @@ test("authenticated meal workflow enforces roles, cutoffs, defaults, QR check-in
     assert.equal(report.body.summary.noShows, 2);
     assert.equal(report.body.daily.length, 1);
     assert.equal((await admin.get("/api/reports").query({ to: "not-a-date" })).status, 400);
+    const breakfastReschedule = await admin.put("/api/admin/meals/breakfast").send(schedule(60 * 60000, 90 * 60000, 120 * 60000));
+    assert.equal(breakfastReschedule.status, 200);
+    assert.equal(breakfastReschedule.body.meal.servingCompletedAt, null);
+    const rescheduledBreakfast = (await residentA.get("/api/meals").query({ date: tomorrow })).body.meals.find(meal => meal.type === "breakfast");
+    assert.equal(rescheduledBreakfast.servingStatus, "Coming up");
     const lunchScheduleOverride = await admin.put("/api/admin/meals/lunch").send(schedule(60 * 60000, 90 * 60000, 120 * 60000));
     assert.equal(lunchScheduleOverride.status, 200);
     assert.equal(lunchScheduleOverride.body.meal.choicesLockedAt, null);
+    assert.equal(lunchScheduleOverride.body.meal.prepCompletedAt, null);
+    const scheduledLunch = (await residentA.get("/api/meals").query({ date: tomorrow })).body.meals.find(meal => meal.type === "lunch");
+    assert.equal(scheduledLunch.servingStatus, "Coming up");
     assert.equal((await residentA.post(`/api/meals/${lunchId}/response`).send({ status: "eating" })).status, 200);
 
     const history = await residentB.get("/api/meals/history");
